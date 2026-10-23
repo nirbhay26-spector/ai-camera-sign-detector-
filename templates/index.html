@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart AI Safety Camera | Real-Time Emergency Distress Detection</title>
+  <meta name="description" content="Real-time computer vision system detecting distress signals, suspicious activity, and person intrusions with instant alerts and preserved video evidence.">
+  
+  <!-- Leaflet Map CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  
+  <!-- Custom Modern Stylesheet -->
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+  <!-- PERSISTENT DEMO MODE BANNER -->
+  <div class="demo-banner">
+    <div class="demo-banner-content">
+      <span class="demo-badge">Demo Mode Active</span>
+      <span>Alerts are strictly restricted to verified emergency contacts ({{ config.ALERT_RECIPIENT_PHONE }}). Automated calls to 112/police are prohibited.</span>
+    </div>
+  </div>
+
+  <!-- NAVIGATION HEADER -->
+  <header class="header-nav">
+    <div class="logo-area">
+      <div class="logo-icon">🛡️</div>
+      <div>
+        <div class="logo-title">Smart AI Safety Camera</div>
+        <div class="logo-subtitle">Real-Time Distress & Emergency Intelligence</div>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="nav-tab-btn active" data-tab="camera">
+        <span>🎥</span> Live Camera
+      </button>
+      <button class="nav-tab-btn" data-tab="control">
+        <span>🛰️</span> Control Room
+      </button>
+      <button class="nav-tab-btn" data-tab="verification">
+        <span>⚖️</span> Verification Console
+      </button>
+      <button class="nav-tab-btn" data-tab="benchmarks">
+        <span>📊</span> Benchmarks & Health
+      </button>
+      <button class="nav-tab-btn" data-tab="logs">
+        <span>📋</span> Alert Log
+      </button>
+      <button class="nav-tab-btn" data-tab="settings">
+        <span>⚙️</span> Settings & Contacts
+      </button>
+    </nav>
+
+    <div class="header-actions">
+      <button class="test-sos-btn" onclick="openSOSTestWizard()">
+        <span>🧪</span> Test SOS System
+      </button>
+      <button class="tutorial-btn" onclick="openTutorialModal()">
+        <span>📖</span> How It Works
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN VIEWPORT CONTAINER -->
+  <main class="main-content">
+
+    <!-- REAL-TIME SOS DISPATCH SUCCESS NOTIFICATION BANNER -->
+    <div id="sosDispatchSuccessBanner" class="dispatch-success-banner" style="display: none;">
+      <div class="banner-pulse-ring"></div>
+      <div class="banner-icon">🚨</div>
+      <div class="banner-body">
+        <div class="banner-headline">
+          <span class="banner-title">EMERGENCY SOS ALERT DISPATCHED & LOGGED</span>
+          <span class="banner-badge">DATABASE COMMITTED</span>
+        </div>
+        <div class="banner-details">
+          <span id="bannerCoords">📍 GPS: 28.628000 N, 77.364900 E</span>
+          <span class="banner-sep">&bull;</span>
+          <span id="bannerPhone">📱 Target: +919876543210</span>
+          <span class="banner-sep">&bull;</span>
+          <span id="bannerStatus">⚡ Status: Dispatched (SMS/WhatsApp Demo)</span>
+          <span class="banner-sep">&bull;</span>
+          <span id="bannerTime">🕒 Time: Just Now</span>
+        </div>
+        <div class="banner-subtext" id="bannerMessage">
+          Signal-for-Help incident permanently recorded in local SQLite database with live GPS coordinates and dispatched to verified contacts.
+        </div>
+      </div>
+      <div class="banner-actions">
+        <button class="banner-view-btn" onclick="switchTab('verification')">Inspect Incident</button>
+        <button class="banner-dismiss-btn" onclick="dismissDispatchBanner()">&times;</button>
+      </div>
+    </div>
+
+    <!-- =========================================================================
+         TAB 1: LIVE CAMERA MONITOR VIEW
+         ========================================================================= -->
+    <section id="tab-camera" class="tab-panel active">
+      <div class="camera-grid">
+        
+        <!-- Left Column: Video Card -->
+        <div class="video-card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <span class="card-title">Live Optical Stream</span>
+              <span class="live-indicator"><span class="live-dot"></span> LIVE</span>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              <span id="cameraFpsBadge" class="status-badge" style="background: rgba(255,255,255,0.06); font-family: 'JetBrains Mono';">-- FPS</span>
+              <span id="nightModeBadge" class="status-badge" style="background: rgba(139, 92, 246, 0.15); color: #c084fc;">Night: Normal</span>
+              <span id="edgeModeBadge" class="status-badge" style="background: rgba(6, 182, 212, 0.15); color: #22d3ee;">Edge AI: Active</span>
+              <span class="status-badge green">Selfie Mirrored</span>
+            </div>
+          </div>
+
+          <!-- Live MJPEG Stream -->
+          <div class="video-wrapper">
+            <img id="videoFeed" class="video-stream-img" src="/video_feed" alt="Live Camera Video Stream">
+            <!-- 3-Stage Alert Pill Overlay -->
+            <div class="stage-overlay-badge" id="videoStageOverlay">
+              <span class="stage-pill-dot green"></span>
+              <span id="videoStageOverlayText">STAGE 1: NORMAL</span>
+            </div>
+          </div>
+
+          <!-- Video Controls Toolbar -->
+          <div class="video-controls-bar">
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+              <button class="ctrl-btn" onclick="resetDetectionState()">
+                <span>🔄</span> Reset State
+              </button>
+              <button class="ctrl-btn" id="btnToggleNight" onclick="toggleNightMode()">
+                <span>🌙</span> Night Mode (CLAHE)
+              </button>
+              <button class="ctrl-btn" id="btnToggleEdge" onclick="toggleEdgeMode()">
+                <span>⚡</span> Edge AI Mode
+              </button>
+              <label class="ctrl-btn" style="cursor: pointer; margin: 0;">
+                <span>📁</span> Upload CCTV Video
+                <input type="file" id="cctvVideoUploadInput" accept="video/mp4,video/avi,video/mov" style="display: none;" onchange="uploadCCTVVideo(this)">
+              </label>
+              <button class="ctrl-btn danger" onclick="simulateAlert()">
+                <span>🚨</span> Trigger Demo Alert
+              </button>
+            </div>
+            <div id="edgeBandwidthSavings" style="font-size: 0.78rem; color: #22d3ee; font-family: 'JetBrains Mono';">
+              Edge Bandwidth Saved: 99.4%
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Live Telemetry & Control Panel -->
+        <div class="telemetry-column">
+          
+          <!-- 3-Stage Alert Status Card -->
+          <div class="telemetry-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <h3 style="font-family: 'Outfit'; font-size: 1.1rem; font-weight: 600;">3-Stage Alert Status</h3>
+              <span id="alertStageBadge" class="stage-status-badge green">GREEN: NORMAL</span>
+            </div>
+
+            <!-- Stage Stepper Pills -->
+            <div class="stage-stepper">
+              <div class="stepper-step active" id="stepPillGreen">
+                <div class="step-num">1</div>
+                <div class="step-name">Normal Hand</div>
+              </div>
+              <div class="stepper-arrow">→</div>
+              <div class="stepper-step" id="stepPillOrange">
+                <div class="step-num">2</div>
+                <div class="step-name">Distress Suspected</div>
+              </div>
+              <div class="stepper-arrow">→</div>
+              <div class="stepper-step" id="stepPillRed">
+                <div class="step-num">3</div>
+                <div class="step-name">SOS Confirmed</div>
+              </div>
+            </div>
+
+            <!-- Multi-Frame Confirmation Tracking Grid -->
+            <div class="multi-frame-grid">
+              <div class="frame-chip" id="chipStage1">
+                <div class="frame-label">Stage 1: Open Palm</div>
+                <div class="frame-val" id="stage1FramesVal">0 / 3 frames</div>
+              </div>
+              <div class="frame-chip" id="chipStage2">
+                <div class="frame-label">Stage 2: Thumb Tuck</div>
+                <div class="frame-val" id="stage2FramesVal">0 / 3 frames</div>
+              </div>
+              <div class="frame-chip" id="chipStage3">
+                <div class="frame-label">Stage 3: 4 Fingers Closed</div>
+                <div class="frame-val" id="stage3FramesVal">0 / 4 frames</div>
+              </div>
+            </div>
+
+            <!-- Telemetry Details Grid -->
+            <div class="telemetry-grid" style="margin-top: 14px;">
+              <div class="tele-item">
+                <div class="tele-label">Fingers Extended</div>
+                <div id="fingersUpVal" class="tele-value">0 / 5</div>
+              </div>
+              <div class="tele-item">
+                <div class="tele-label">Handedness</div>
+                <div id="handednessVal" class="tele-value" style="font-size: 0.95rem;">Detecting...</div>
+              </div>
+            </div>
+
+            <div class="telemetry-grid" style="margin-top: 10px;">
+              <div class="tele-item">
+                <div class="tele-label">Instant Hand Posture</div>
+                <div id="postureVal" style="font-size: 0.88rem; font-weight: 600; color: #93c5fd;">Initializing...</div>
+              </div>
+              <div class="tele-item">
+                <div class="tele-label">Optical Clarity</div>
+                <div id="clarityVal" style="font-size: 0.88rem; font-weight: 600; color: #10b981;">100.0 (Sharp)</div>
+              </div>
+            </div>
+
+            <!-- Confirmation Meter -->
+            <div class="meter-container">
+              <div class="meter-header">
+                <span style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px;">Confirmation Confidence</span>
+                <span id="confidenceMeterPercent" style="font-family: 'JetBrains Mono'; font-weight: 700; font-size: 0.85rem; color: var(--accent-cyan);">0%</span>
+              </div>
+              <div class="meter-track">
+                <div id="confidenceMeterFill" class="meter-fill"></div>
+              </div>
+            </div>
+
+            <!-- False Alarm Protection Notice -->
+            <div style="margin-top: 10px; padding: 6px 10px; background: rgba(59, 130, 246, 0.08); border-radius: 6px; font-size: 0.74rem; color: #93c5fd;">
+              🛡️ <b>False-Alarm Protection:</b> Isolated closed fists without preceding Open Palm & Thumb Tuck are rejected as normal movement.
+            </div>
+
+            <!-- Cooldown Warning Banner -->
+            <div id="cooldownBanner" style="display: none; margin-top: 12px; padding: 8px 12px; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 6px; font-size: 0.78rem; color: #fbbf24; text-align: center;">
+              COOLDOWN ACTIVE
+            </div>
+
+            <!-- Mode Selector Switcher -->
+            <div class="config-group" style="margin-top: 14px;">
+              <label style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; font-weight: 600;">Detection Mode</label>
+              <div class="mode-pills">
+                <button class="mode-pill-btn" data-mode="rapid_fist">Rapid Fist</button>
+                <button class="mode-pill-btn" data-mode="signal_for_help">Signal for Help</button>
+                <button class="mode-pill-btn active" data-mode="both">Both</button>
+                <button class="mode-pill-btn" data-mode="restricted_zone">Zone Breach</button>
+              </div>
+            </div>
+
+            <!-- Sensitivity Slider -->
+            <div class="slider-container">
+              <div class="slider-label-row">
+                <span>Detection Sensitivity</span>
+                <span id="sensitivityValLabel" style="font-family: 'JetBrains Mono'; font-weight: 600; color: #fff;">1.0x</span>
+              </div>
+              <input id="sensitivitySlider" type="range" min="0.5" max="2.0" step="0.1" value="1.0">
+            </div>
+          </div>
+
+          <!-- Live Location & Police Vector Card -->
+          <div class="location-card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <h3 style="font-family: 'Outfit'; font-size: 1.05rem; font-weight: 600;">Location & Dispatch Line</h3>
+                <span class="status-badge green" style="font-size: 0.68rem; padding: 2px 7px;">Leaflet / OpenStreetMap</span>
+              </div>
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text-muted); cursor: pointer;">
+                <input id="trackLiveToggle" type="checkbox" onchange="toggleLiveTracking()"> Track Live
+              </label>
+            </div>
+
+            <div class="coords-row">
+              <div>
+                <div style="font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase;">GPS Coordinates (±8m Accuracy)</div>
+                <div class="coords-text">28.628000 N, 77.364900 E</div>
+              </div>
+              <button class="copy-btn" onclick="copyMapsLink()">Copy Link</button>
+            </div>
+
+            <!-- Leaflet Mini Map -->
+            <div id="miniMapBox" class="mini-map-box"></div>
+
+            <!-- Police Station Distance Banner -->
+            <div class="police-badge-banner">
+              <span style="font-size: 1.1rem;">🚔</span>
+              <div>
+                <div style="font-weight: 600; color: #93c5fd;">Nearest Station: Sector 58 Police Station</div>
+                <div style="color: var(--text-muted); font-size: 0.75rem;">Direct Vector: 1.4 km &bull; Est. Response Time: 4 mins</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 2: CONTROL ROOM DASHBOARD VIEW
+         ========================================================================= -->
+    <section id="tab-control" class="tab-panel">
+      <!-- High-Level Metrics Row -->
+      <div class="metrics-row">
+        <div class="metric-card blue">
+          <div class="metric-icon-box">📹</div>
+          <div>
+            <div id="metricTotalCameras" class="metric-val">8</div>
+            <div class="metric-sub">Monitored CCTV Nodes</div>
+          </div>
+        </div>
+
+        <div class="metric-card red">
+          <div class="metric-icon-box">🚨</div>
+          <div>
+            <div id="metricActiveAlerts" class="metric-val">0</div>
+            <div class="metric-sub">Active Emergencies</div>
+          </div>
+        </div>
+
+        <div class="metric-card green">
+          <div class="metric-icon-box">📊</div>
+          <div>
+            <div id="metricAlertsToday" class="metric-val">0</div>
+            <div class="metric-sub">Incidents Logged Today</div>
+          </div>
+        </div>
+
+        <div class="metric-card purple">
+          <div class="metric-icon-box">⚡</div>
+          <div>
+            <div id="metricAvgResponse" class="metric-val">12s</div>
+            <div class="metric-sub">Average Dispatch Time</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Macro-Geospatial Disclaimer Notice -->
+      <div class="satellite-disclaimer-banner">
+        <span style="font-size: 1.3rem;">🛰️</span>
+        <div style="flex: 1;">
+          <div style="font-weight: 700; color: #93c5fd; font-size: 0.88rem;">Macro-Geospatial Intelligence Layer (Esri World Imagery)</div>
+          <div style="color: var(--text-muted); font-size: 0.78rem;">
+            <b>Physics & System Disclosure:</b> Satellite layers provide macro-area geographic & situational context. Silent distress signals and hand gestures are detected strictly through local CCTV / IP / Edge camera optical sensors.
+          </div>
+        </div>
+        <button class="ctrl-btn" id="btnToggleSatellite" onclick="toggleSatelliteLayer()" style="font-size: 0.78rem; padding: 6px 12px;">
+          <span>🛰️</span> Switch to Satellite
+        </button>
+      </div>
+
+      <!-- Control Room Grid: Map + Camera List -->
+      <div class="control-room-layout">
+        <div class="map-card-wrapper">
+          <div class="card-header">
+            <div class="card-title-group">
+              <span class="card-title">National Surveillance Grid (India)</span>
+              <span class="status-badge green">Live Sync</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button class="ctrl-btn danger" onclick="simulateAlert()">
+                <span>🚨</span> Simulate Emergency Alert
+              </button>
+            </div>
+          </div>
+          <div id="controlRoomMap"></div>
+        </div>
+
+        <div class="camera-list-sidebar">
+          <div class="card-header">
+            <span class="card-title" style="font-size: 0.95rem;">Surveillance Nodes</span>
+            <button class="ctrl-btn" style="font-size: 0.72rem; padding: 4px 8px;" onclick="openRegisterCameraModal()">+ Add CCTV</button>
+          </div>
+          <div id="cameraListScroll" class="camera-list-scroll">
+            <!-- Dynamically populated by control_room.js -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 3: HUMAN-IN-THE-LOOP VERIFICATION CONSOLE
+         ========================================================================= -->
+    <section id="tab-verification" class="tab-panel">
+      <div class="verification-container">
+        
+        <!-- Verification Overview Bar -->
+        <div class="verification-header-card">
+          <div>
+            <h2 style="font-family: 'Outfit'; font-size: 1.35rem; font-weight: 700;">Human-in-the-Loop Emergency Verification Console</h2>
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">
+              Review AI-detected distress candidate incidents before escalation. Inspect cryptographic evidence hashes, trigger multi-camera handover continuity, and record operator decisions.
+            </p>
+          </div>
+          <div class="verification-stats">
+            <div class="stat-pill red"><span id="verifPendingCount">0</span> Pending Review</div>
+            <div class="stat-pill green"><span id="verifConfirmedCount">0</span> Confirmed</div>
+            <div class="stat-pill yellow"><span id="verifFalseAlarmCount">0</span> False Alarms</div>
+          </div>
+        </div>
+
+        <!-- Incidents Review Table Card -->
+        <div class="log-card" style="margin-top: 16px;">
+          <div class="log-toolbar">
+            <div style="display: flex; gap: 8px;">
+              <button class="ctrl-btn verif-filter-btn active" data-vfilter="all" onclick="filterVerificationIncidents('all')">All Incidents</button>
+              <button class="ctrl-btn verif-filter-btn" data-vfilter="PENDING" onclick="filterVerificationIncidents('PENDING')">Pending Action</button>
+              <button class="ctrl-btn verif-filter-btn" data-vfilter="CONFIRMED" onclick="filterVerificationIncidents('CONFIRMED')">Confirmed Emergency</button>
+              <button class="ctrl-btn verif-filter-btn" data-vfilter="FALSE_ALARM" onclick="filterVerificationIncidents('FALSE_ALARM')">False Alarms</button>
+            </div>
+            <div>
+              <button class="ctrl-btn" onclick="refreshIncidentsList()">
+                <span>🔄</span> Refresh Queue
+              </button>
+            </div>
+          </div>
+
+          <div class="log-table-wrapper">
+            <table class="log-table">
+              <thead>
+                <tr>
+                  <th>UUID / ID</th>
+                  <th>Timestamp</th>
+                  <th>Camera & Location</th>
+                  <th>Stage & Confidence</th>
+                  <th>Evidence SHA-256</th>
+                  <th>Snapshot</th>
+                  <th>Review Status</th>
+                  <th>Operator Actions</th>
+                </tr>
+              </thead>
+              <tbody id="verificationTableBody">
+                <!-- Dynamically populated by verification.js / app.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 4: BENCHMARKS & AI HEALTH
+         ========================================================================= -->
+    <section id="tab-benchmarks" class="tab-panel">
+      <div class="benchmarks-container">
+        
+        <!-- Benchmark Control Banner -->
+        <div class="benchmark-hero-card">
+          <div>
+            <h2 style="font-family: 'Outfit'; font-size: 1.35rem; font-weight: 700;">Model Benchmarking & Camera Network Diagnostics</h2>
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">
+              Evaluate the Signal for Help detection model against the 15-case benchmark suite (5 SOS positive cases + 10 NO-SOS confusable activities like fist, waving, phone holding, scratching, pointing).
+            </p>
+          </div>
+          <button class="ctrl-btn" style="background: linear-gradient(135deg, #10b981, #059669); font-weight: 600; padding: 10px 20px;" onclick="runModelBenchmark()">
+            <span id="benchmarkBtnIcon">🚀</span> <span id="benchmarkBtnText">Run Benchmark Suite</span>
+          </button>
+        </div>
+
+        <!-- Evaluation Metrics KPI Grid -->
+        <div class="benchmark-metrics-grid" id="benchmarkMetricsGrid">
+          <div class="b-metric-card">
+            <div class="b-metric-val" id="bmPrecision">--%</div>
+            <div class="b-metric-label">Precision</div>
+            <div class="b-metric-sub">Accuracy of positive alarms</div>
+          </div>
+          <div class="b-metric-card">
+            <div class="b-metric-val" id="bmRecall">--%</div>
+            <div class="b-metric-label">Recall</div>
+            <div class="b-metric-sub">True emergency detection rate</div>
+          </div>
+          <div class="b-metric-card">
+            <div class="b-metric-val" id="bmF1">--</div>
+            <div class="b-metric-label">F1-Score</div>
+            <div class="b-metric-sub">Harmonic precision-recall balance</div>
+          </div>
+          <div class="b-metric-card">
+            <div class="b-metric-val" id="bmFPR">--%</div>
+            <div class="b-metric-label">False Positive Rate (FPR)</div>
+            <div class="b-metric-sub">Target &lt; 5% on everyday gestures</div>
+          </div>
+          <div class="b-metric-card">
+            <div class="b-metric-val" id="bmFNR">--%</div>
+            <div class="b-metric-label">False Negative Rate (FNR)</div>
+            <div class="b-metric-sub">Missed distress rate</div>
+          </div>
+          <div class="b-metric-card">
+            <div class="b-metric-val" id="bmLatency">-- ms</div>
+            <div class="b-metric-label">Avg Inference Latency</div>
+            <div class="b-metric-sub">Target &lt; 50ms edge processing</div>
+          </div>
+        </div>
+
+        <!-- Benchmark Detailed Results Table -->
+        <div class="log-card" style="margin-top: 16px;">
+          <div class="card-header">
+            <span class="card-title" style="font-size: 1rem;">15-Case Confusion Evaluation Test Suite (SOS vs Confusable NO-SOS)</span>
+            <span id="benchmarkTimestamp" style="font-size: 0.78rem; color: var(--text-dim); font-family: 'JetBrains Mono';">Not evaluated yet</span>
+          </div>
+          <div class="log-table-wrapper">
+            <table class="log-table">
+              <thead>
+                <tr>
+                  <th>Test Case Name</th>
+                  <th>Category</th>
+                  <th>Expected Ground Truth</th>
+                  <th>Model Prediction</th>
+                  <th>Confidence</th>
+                  <th>Latency</th>
+                  <th>Result</th>
+                </tr>
+              </thead>
+              <tbody id="benchmarkTableBody">
+                <tr>
+                  <td colspan="7" style="text-align: center; color: var(--text-dim); padding: 30px;">
+                    Click "Run Benchmark Suite" above to evaluate model performance on the NO-SOS dataset.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Camera Network Health Section -->
+        <div class="log-card" style="margin-top: 24px;">
+          <div class="card-header">
+            <div class="card-title-group">
+              <span class="card-title" style="font-size: 1rem;">Surveillance Camera Network Health Diagnostics</span>
+              <span class="status-badge green">Automated Laplacian Variance</span>
+            </div>
+            <button class="ctrl-btn" onclick="refreshCameraHealth()">
+              <span>🔄</span> Check Health Now
+            </button>
+          </div>
+          <div class="camera-health-grid" id="cameraHealthGrid">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 5: ALERT AUDIT LOG VIEW
+         ========================================================================= -->
+    <section id="tab-logs" class="tab-panel">
+      <div class="log-card">
+        <div class="log-toolbar">
+          <div style="display: flex; gap: 8px;">
+            <button class="ctrl-btn log-filter-btn active" data-status="all" onclick="filterAlerts('all')">All</button>
+            <button class="ctrl-btn log-filter-btn" data-status="Sent" onclick="filterAlerts('Sent')">Sent</button>
+            <button class="ctrl-btn log-filter-btn" data-status="Cancelled" onclick="filterAlerts('Cancelled')">Cancelled</button>
+            <button class="ctrl-btn log-filter-btn" data-status="Pending" onclick="filterAlerts('Pending')">Pending</button>
+          </div>
+
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <input id="logSearchInput" class="search-input" type="text" placeholder="Search by location, gesture, or camera...">
+            <button class="ctrl-btn" onclick="exportAlertsCSV()">
+              <span>📥</span> Export CSV
+            </button>
+            <button class="ctrl-btn" onclick="printAlertReport()">
+              <span>🖨️</span> Print / PDF
+            </button>
+          </div>
+        </div>
+
+        <div class="log-table-wrapper">
+          <table class="log-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Timestamp</th>
+                <th>Camera & Location</th>
+                <th>Gesture Type</th>
+                <th>Snapshot</th>
+                <th>Status</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody id="alertTableBody">
+              <!-- Dynamically populated by alert_log.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 6: SETTINGS & EMERGENCY CONTACTS VIEW
+         ========================================================================= -->
+    <section id="tab-settings" class="tab-panel">
+      <div class="settings-container">
+        
+        <!-- Emergency Contacts Management Section -->
+        <div class="settings-card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div>
+              <h3 style="font-family: 'Outfit'; font-size: 1.25rem; font-weight: 700;">Emergency Contact Directory</h3>
+              <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">
+                Verified contacts receive automated high-priority SMS alerts with Google Maps live location upon confirmed distress.
+              </p>
+            </div>
+            <button class="ctrl-btn" style="background: var(--accent-blue); font-weight: 600;" onclick="openAddContactModal()">
+              + Add Contact
+            </button>
+          </div>
+
+          <div class="log-table-wrapper">
+            <table class="log-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Phone Number</th>
+                  <th>Relationship / Role</th>
+                  <th>Primary</th>
+                  <th>OTP Verification</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="contactsTableBody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- System Preferences & Safety Rules -->
+        <div class="settings-card" style="margin-top: 24px;">
+          <h3 style="font-family: 'Outfit'; font-size: 1.25rem; font-weight: 700; margin-bottom: 16px;">System Preferences & Safety Rules</h3>
+          
+          <form id="settingsForm">
+            <div class="settings-section-title">Emergency Contact Configuration</div>
+            
+            <div class="setting-item">
+              <div class="setting-info">
+                <div class="setting-name">Primary Alert Recipient Phone Number</div>
+                <div class="setting-desc">Verified contact phone number with country code (+91 for India).</div>
+              </div>
+              <input id="settingPhone" class="setting-input" type="text" value="{{ config.ALERT_RECIPIENT_PHONE }}">
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <div class="setting-name">Demo Mode</div>
+                <div class="setting-desc">Restricts all alerts strictly to verified contact numbers. Automated emergency services (112) calls remain blocked.</div>
+              </div>
+              <label class="switch">
+                <input id="settingTestMode" type="checkbox" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <div class="setting-name">Dry Run Simulation Mode</div>
+                <div class="setting-desc">When enabled, logs alert text and coordinates without consuming live Twilio SMS units.</div>
+              </div>
+              <label class="switch">
+                <input id="settingDryRun" type="checkbox" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="settings-section-title" style="margin-top: 24px;">Alert Behavior & Audio</div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <div class="setting-name">Audio Siren Sound</div>
+                <div class="setting-desc">Plays an emergency two-tone siren through browser speakers when distress is confirmed.</div>
+              </div>
+              <label class="switch">
+                <input id="settingSiren" type="checkbox" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <div class="setting-name">Countdown Duration (Seconds)</div>
+                <div class="setting-desc">Seconds before dispatch allows user to cancel false alarms.</div>
+              </div>
+              <input id="settingCountdown" class="setting-input" type="number" min="3" max="30" value="10">
+            </div>
+
+            <div style="margin-top: 30px; text-align: right;">
+              <button type="submit" class="ctrl-btn" style="background: var(--accent-blue); padding: 10px 24px; font-weight: 600;">
+                Save Preferences
+              </button>
+            </div>
+          </form>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===========================================================================
+       INTERACTIVE FULL-SCREEN EMERGENCY OVERLAY (SIREN + COUNTDOWN RING)
+       =========================================================================== -->
+  <div id="emergencyOverlay" class="emergency-overlay">
+    <div class="emergency-modal-card">
+      <div class="alert-siren-header">🚨 DISTRESS DETECTED! 🚨</div>
+      <div class="alert-subtext">Distress gesture confirmed. Emergency dispatch initiated.</div>
+
+      <!-- Circular SVG Countdown Ring -->
+      <div class="countdown-box">
+        <svg class="countdown-svg">
+          <circle class="countdown-circle-bg" cx="75" cy="75" r="70"></circle>
+          <circle id="countdownCircleProgress" class="countdown-circle-progress" cx="75" cy="75" r="70"></circle>
+        </svg>
+        <div id="countdownNumber" class="countdown-number">10</div>
+      </div>
+
+      <!-- Big Green Cancel Button -->
+      <button class="cancel-safe-btn" onclick="cancelEmergencyAlert()">
+        🛡️ I'M SAFE, CANCEL ALERT
+      </button>
+
+      <div>
+        <button class="dispatch-now-btn" onclick="confirmEmergencyAlertNow()">
+          Dispatch Immediately (Skip Timer)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================================================================
+       STEP-BY-STEP DISPATCH PROGRESS MODAL (AFTER COUNTDOWN)
+       =========================================================================== -->
+  <div id="dispatchProgressModal" class="modal-backdrop">
+    <div class="dispatch-progress-modal active">
+      <h3 style="font-family: 'Outfit'; font-size: 1.25rem; font-weight: 700; color: #93c5fd; margin-bottom: 6px;">
+        Emergency Dispatch In Progress
+      </h3>
+      <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 20px;">
+        Evidence package secured and alert broadcasted to verified emergency contacts.
+      </p>
+
+      <div class="step-row" id="step1">
+        <div class="step-icon">1</div>
+        <div class="step-text">Acquiring high-precision GPS coordinates...</div>
+      </div>
+
+      <div class="step-row" id="step2">
+        <div class="step-icon">2</div>
+        <div class="step-text">Locating nearest police station (Sector 58 Station, 1.4 km)...</div>
+      </div>
+
+      <div class="step-row" id="step3">
+        <div class="step-icon">3</div>
+        <div class="step-text">Broadcasting emergency SMS with Google Maps link to verified contacts...</div>
+      </div>
+
+      <div class="step-row" id="step4">
+        <div class="step-icon">4</div>
+        <div class="step-text">Alert Sent! Evidence snapshot and SHA-256 tamper manifest archived.</div>
+      </div>
+
+      <div style="margin-top: 18px; text-align: center;">
+        <img id="dispatchSnapshotPreview" style="display: none; max-width: 100%; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 14px;" src="" alt="Incident Snapshot">
+        <button class="ctrl-btn" style="background: var(--accent-blue); width: 100%; padding: 10px;" onclick="closeDispatchModal()">
+          Acknowledge & Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================================================================
+       TUTORIAL MODAL: HOW TO PERFORM THE GESTURE
+       =========================================================================== -->
+  <div id="tutorialModal" class="modal-backdrop">
+    <div class="modal-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <h3 style="font-family: 'Outfit'; font-size: 1.3rem; font-weight: 700;">How to Perform the "Signal for Help"</h3>
+        <button class="ctrl-btn" onclick="closeTutorialModal()">✕</button>
+      </div>
+
+      <p style="font-size: 0.85rem; color: var(--text-muted);">
+        The International "Signal for Help" is a silent, one-handed distress gesture recognized worldwide.
+      </p>
+
+      <div class="tutorial-steps-grid">
+        <div class="tut-step-box">
+          <div class="tut-step-num">1</div>
+          <div class="tut-step-title">Open Palm</div>
+          <div class="tut-step-desc">Raise hand facing camera with palm open and thumb extended outwards.</div>
+        </div>
+
+        <div class="tut-step-box">
+          <div class="tut-step-num">2</div>
+          <div class="tut-step-title">Tuck Thumb</div>
+          <div class="tut-step-desc">Fold thumb inward across the center of your palm. Four fingers remain up.</div>
+        </div>
+
+        <div class="tut-step-box">
+          <div class="tut-step-num">3</div>
+          <div class="tut-step-title">Close Fingers</div>
+          <div class="tut-step-desc">Fold your four fingers down over the thumb, forming a fist enclosing the thumb.</div>
+        </div>
+      </div>
+
+      <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 8px; padding: 12px; font-size: 0.82rem; color: #93c5fd;">
+        💡 <b>Tip for Demo:</b> Hold the closed fist steady for 2.0 seconds until the confirmation meter reaches 100%!
+      </div>
+
+      <div style="margin-top: 20px; text-align: right;">
+        <button class="ctrl-btn" style="background: var(--accent-blue);" onclick="closeTutorialModal()">Got it!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================================================================
+       TEST SOS SYSTEM GUIDED WALKTHROUGH WIZARD MODAL
+       =========================================================================== -->
+  <div id="sosTestWizardModal" class="modal-backdrop">
+    <div class="modal-card" style="max-width: 600px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h3 style="font-family: 'Outfit'; font-size: 1.3rem; font-weight: 700; color: #f59e0b;">🧪 Interactive SOS Test & Training Wizard</h3>
+        <button class="ctrl-btn" onclick="closeSOSTestWizard()">✕</button>
+      </div>
+
+      <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 16px;">
+        Follow this 3-step sequence in front of the camera to verify emergency detection, multi-frame progression, and 3-stage transitions.
+      </p>
+
+      <div class="wizard-steps-container">
+        <div class="wizard-step" id="wStep1">
+          <div class="w-step-header">
+            <span class="w-badge">Step 1</span>
+            <span class="w-title">Open Palm (Stage 1)</span>
+          </div>
+          <p class="w-desc">Show your open hand with 4-5 fingers extended towards the camera.</p>
+          <div class="w-indicator" id="wInd1">Waiting for hand...</div>
+        </div>
+
+        <div class="wizard-step" id="wStep2">
+          <div class="w-step-header">
+            <span class="w-badge">Step 2</span>
+            <span class="w-title">Tuck Thumb (Stage 2)</span>
+          </div>
+          <p class="w-desc">Tuck thumb into palm while keeping index, middle, ring, and pinky extended.</p>
+          <div class="w-indicator" id="wInd2">Pending Step 1</div>
+        </div>
+
+        <div class="wizard-step" id="wStep3">
+          <div class="w-step-header">
+            <span class="w-badge">Step 3</span>
+            <span class="w-title">Close Fingers Over Thumb (Stage 3)</span>
+          </div>
+          <p class="w-desc">Fold fingers over thumb. Hold for 2 seconds to confirm SOS distress.</p>
+          <div class="w-indicator" id="wInd3">Pending Step 2</div>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
+        <button class="ctrl-btn" onclick="simulateAlert(); closeSOSTestWizard();">
+          ⚡ Skip and Simulate Demo Alert
+        </button>
+        <button class="ctrl-btn" style="background: var(--accent-blue);" onclick="closeSOSTestWizard()">
+          Back to Live Feed
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================================================================
+       FALSE ALARM LEARNING FEEDBACK MODAL
+       =========================================================================== -->
+  <div id="falseAlarmFeedbackModal" class="modal-backdrop">
+    <div class="modal-card" style="max-width: 520px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h3 style="font-family: 'Outfit'; font-size: 1.25rem; font-weight: 700; color: #fbbf24;">⚠️ Classify False Alarm (Model Learning)</h3>
+        <button class="ctrl-btn" onclick="closeFalseAlarmModal()">✕</button>
+      </div>
+
+      <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 16px;">
+        Categorize what the person was doing so the system can improve false-positive rejection.
+      </p>
+
+      <form id="falseAlarmForm" onsubmit="submitFalseAlarmFeedback(event)">
+        <input type="hidden" id="faIncidentId" value="">
+
+        <div style="margin-bottom: 14px;">
+          <label style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Activity Category</label>
+          <select id="faCategory" class="setting-input" style="width: 100%; margin-top: 6px;">
+            <option value="Resting Closed Fist">Resting Closed Fist (Isolated Fist)</option>
+            <option value="Hand Waving">Hand Waving / Greeting</option>
+            <option value="Holding Mobile Phone">Holding Mobile Phone</option>
+            <option value="Pointing Finger">Pointing Finger / Gesture</option>
+            <option value="Scratching Face/Head">Scratching Face / Head</option>
+            <option value="Drinking Water">Holding Bottle / Drinking</option>
+            <option value="Carrying Bag/Object">Carrying Bag / Object</option>
+            <option value="Rapid Hand Movement">Rapid Hand Movement</option>
+            <option value="Poor Lighting / Glare">Poor Lighting / Night Glare</option>
+            <option value="Other">Other Benign Movement</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom: 14px;">
+          <label style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Lighting Condition</label>
+          <select id="faLighting" class="setting-input" style="width: 100%; margin-top: 6px;">
+            <option value="Normal Day">Normal Day</option>
+            <option value="Low Light / Night">Low Light / Night</option>
+            <option value="Strong Backlight">Strong Backlight</option>
+            <option value="Infrared CCTV">Infrared CCTV</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom: 18px;">
+          <label style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Operator Notes</label>
+          <textarea id="faNotes" class="setting-input" rows="3" style="width: 100%; margin-top: 6px;" placeholder="Optional notes for model retraining..."></textarea>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+          <button type="button" class="ctrl-btn" onclick="closeFalseAlarmModal()">Cancel</button>
+          <button type="submit" class="ctrl-btn" style="background: #fbbf24; color: #000; font-weight: 600;">
+            Submit Feedback & Retrain
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===========================================================================
+       CROSS-CAMERA CONTINUITY TIMELINE MODAL
+       =========================================================================== -->
+  <div id="crossCameraModal" class="modal-backdrop">
+    <div class="modal-card" style="max-width: 650px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h3 style="font-family: 'Outfit'; font-size: 1.25rem; font-weight: 700; color: #38bdf8;">🔗 Cross-Camera Continuity & Handover</h3>
+        <button class="ctrl-btn" onclick="closeCrossCameraModal()">✕</button>
+      </div>
+
+      <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 16px;">
+        Multi-node tracking across surveillance zones. Traces person movement and incident trajectory across adjacent cameras.
+      </p>
+
+      <div id="crossCameraTimeline" class="timeline-container">
+        <!-- Dynamically populated -->
+      </div>
+
+      <div style="margin-top: 18px; text-align: right;">
+        <button class="ctrl-btn" style="background: var(--accent-blue);" onclick="closeCrossCameraModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================================================================
+       ADD EMERGENCY CONTACT MODAL
+       =========================================================================== -->
+  <div id="addContactModal" class="modal-backdrop">
+    <div class="modal-card" style="max-width: 480px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h3 style="font-family: 'Outfit'; font-size: 1.25rem; font-weight: 700;">Add Emergency Contact</h3>
+        <button class="ctrl-btn" onclick="closeAddContactModal()">✕</button>
+      </div>
+
+      <form id="addContactForm" onsubmit="submitAddContact(event)">
+        <div style="margin-bottom: 12px;">
+          <label style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Contact Full Name</label>
+          <input type="text" id="contactNameInput" class="setting-input" style="width: 100%; margin-top: 6px;" required placeholder="e.g. Aarti Sharma">
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <label style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Phone Number (+91...)</label>
+          <input type="tel" id="contactPhoneInput" class="setting-input" style="width: 100%; margin-top: 6px;" required placeholder="+919876543210">
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <label style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Relationship / Role</label>
+          <select id="contactRoleInput" class="setting-input" style="width: 100%; margin-top: 6px;">
+            <option value="Family">Family Member</option>
+            <option value="Friend">Friend</option>
+            <option value="Security / Guard">Security / Guard</option>
+            <option value="Manager / Office">Manager / Office</option>
+            <option value="Emergency Contact">Emergency Contact</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom: 18px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: #cbd5e1; cursor: pointer;">
+            <input type="checkbox" id="contactPrimaryInput"> Set as Primary Contact
+          </label>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+          <button type="button" class="ctrl-btn" onclick="closeAddContactModal()">Cancel</button>
+          <button type="submit" class="ctrl-btn" style="background: var(--accent-blue); font-weight: 600;">Save & Send OTP</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===========================================================================
+       OTP VERIFICATION MODAL
+       =========================================================================== -->
+  <div id="otpVerifyModal" class="modal-backdrop">
+    <div class="modal-card" style="max-width: 440px; text-align: center;">
+      <h3 style="font-family: 'Outfit'; font-size: 1.3rem; font-weight: 700; color: #93c5fd; margin-bottom: 8px;">Verify Contact via OTP</h3>
+      <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 16px;">
+        A 6-digit verification code was sent to <b id="otpTargetPhone">--</b>.
+      </p>
+
+      <div id="otpSimulatedBox" style="background: rgba(16, 185, 129, 0.1); border: 1px dashed rgba(16, 185, 129, 0.4); padding: 8px 12px; border-radius: 8px; font-size: 0.8rem; color: #6ee7b7; margin-bottom: 16px;">
+        Simulation Mode Code: <span id="simulatedOtpCode" style="font-family: 'JetBrains Mono'; font-weight: 700; letter-spacing: 2px;">--</span>
+      </div>
+
+      <input type="text" id="otpCodeInput" class="setting-input" maxlength="6" style="width: 180px; font-size: 1.5rem; text-align: center; letter-spacing: 6px; font-family: 'JetBrains Mono'; margin-bottom: 16px;" placeholder="000000">
+
+      <div style="display: flex; justify-content: center; gap: 10px;">
+        <button class="ctrl-btn" onclick="closeOtpModal()">Cancel</button>
+        <button class="ctrl-btn" style="background: var(--accent-green); color: #000; font-weight: 700;" onclick="submitOtpVerification()">Verify & Activate</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================================================================
+       REGISTER NEW CCTV/IP CAMERA MODAL
+       =========================================================================== -->
+  <div id="registerCameraModal" class="modal-backdrop">
+    <div class="modal-card" style="max-width: 520px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h3 style="font-family: 'Outfit'; font-size: 1.25rem; font-weight: 700;">Integrate Surveillance Node (CCTV/RTSP)</h3>
+        <button class="ctrl-btn" onclick="closeRegisterCameraModal()">✕</button>
+      </div>
+
+      <form id="registerCameraForm" onsubmit="submitRegisterCamera(event)">
+        <div style="margin-bottom: 10px;">
+          <label style="font-size: 0.76rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Camera ID</label>
+          <input type="text" id="rcCamId" class="setting-input" style="width: 100%; margin-top: 4px;" required placeholder="e.g. CAM-09">
+        </div>
+
+        <div style="margin-bottom: 10px;">
+          <label style="font-size: 0.76rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Camera Name / Title</label>
+          <input type="text" id="rcCamName" class="setting-input" style="width: 100%; margin-top: 4px;" required placeholder="e.g. Noida Metro Gate 3">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+          <div>
+            <label style="font-size: 0.76rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">City</label>
+            <input type="text" id="rcCity" class="setting-input" style="width: 100%; margin-top: 4px;" value="Noida">
+          </div>
+          <div>
+            <label style="font-size: 0.76rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Zone</label>
+            <input type="text" id="rcZone" class="setting-input" style="width: 100%; margin-top: 4px;" value="Sector 62">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+          <div>
+            <label style="font-size: 0.76rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Latitude</label>
+            <input type="number" step="0.0001" id="rcLat" class="setting-input" style="width: 100%; margin-top: 4px;" value="28.6280">
+          </div>
+          <div>
+            <label style="font-size: 0.76rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Longitude</label>
+            <input type="number" step="0.0001" id="rcLon" class="setting-input" style="width: 100%; margin-top: 4px;" value="77.3649">
+          </div>
+        </div>
+
+        <div style="margin-bottom: 14px;">
+          <label style="font-size: 0.76rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Organization</label>
+          <input type="text" id="rcOrg" class="setting-input" style="width: 100%; margin-top: 4px;" value="Noida Smart City Surveillance">
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+          <button type="button" class="ctrl-btn" onclick="closeRegisterCameraModal()">Cancel</button>
+          <button type="submit" class="ctrl-btn" style="background: var(--accent-blue); font-weight: 600;">Register Node</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Leaflet Map JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- Client-Side Application Scripts -->
+  <script src="/static/js/app.js"></script>
+  <script src="/static/js/control_room.js"></script>
+  <script src="/static/js/alert_log.js"></script>
+
+  <script>
+    function openTutorialModal() {
+      document.getElementById('tutorialModal').classList.add('active');
+    }
+    function closeTutorialModal() {
+      document.getElementById('tutorialModal').classList.remove('active');
+    }
+  </script>
+</body>
+</html>

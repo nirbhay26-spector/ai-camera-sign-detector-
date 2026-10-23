@@ -1,0 +1,12 @@
+# Core Computer Vision & MediaPipe Detection
+opencv-python>=4.8.0
+mediapipe>=0.10.0
+numpy>=1.24.0
+
+# Alerting & Network Integrations
+twilio>=8.0.0
+requests>=2.28.0
+flask>=3.0.0
+
+# Environment Configuration
+python-dotenv>=1.0.0
